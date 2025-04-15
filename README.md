@@ -1,59 +1,61 @@
+**English** ｜ [简体中文](docs/locale/README_zh.md)
+
 # Prompt Factory
-高效的提示词处理工具，支持批量优化多文件提示词，自动环境配置。
+Highly efficient prompt engineering tool supporting batch optimization for multiple files with automated environment setup.
 
-## 功能特性
-- 支持多种AI服务提供商API (OpenAI, Anthropic, OpenRouter)
-- 自动化环境检测、依赖安装与自检
-- 递归处理目录下所有文件
-- 安全的API密钥管理，程序退出时自动清理
-- 交互式命令行界面
-- 模块化设计，易于扩展与集成
+## Features
+- Supports multiple AI service providers (OpenAI, Anthropic, OpenRouter)
+- Automated environment detection, dependency installation, and self-checks
+- Recursive processing of all files in directories
+- Secure in-memory API key management, auto-cleared on exit
+- Interactive command-line interface
+- Modular design for easy extension and integration
 
-## 安装说明
-### 依赖要求
+## Installation Guide
+### Requirements
 - Python 3.8+
 - pip 20.0+
 
-### 安装步骤
-1. 克隆仓库
+### Steps
+1. Clone the repository
    ```bash
    git clone https://github.com/XucroYuri/Prompt_Factory.git
    cd Prompt_Factory
    python -m src.enhanced_cli
    ```
-   程序会自动检测环境、安装依赖并引导完成配置。
+   The program auto-detects the environment, installs dependencies, and guides you through configuration.
 
-## 使用流程
-1. 运行程序：`python -m src.enhanced_cli`
-2. 按提示输入API密钥（支持OpenAI、Anthropic、OpenRouter）
-3. 自动测试API连接
-4. 选择服务提供商和模型
-5. 选择提示词模板
-6. 输入要处理的文件或目录路径
-7. 处理完成后，结果保存到output目录
+## Usage Process
+1. Run: `python -m src.enhanced_cli`
+2. Enter API key as prompted (supports OpenAI, Anthropic, OpenRouter)
+3. Connection to API is tested automatically
+4. Select service provider and model
+5. Choose prompt template
+6. Input the target file or directory
+7. Results are automatically saved in the output directory
 
-## 高级用法
-### 命令行参数
+## Advanced Usage
+### CLI Arguments
 ```bash
-python -m src.enhanced_cli --force-install  # 强制重新安装依赖
-python -m src.enhanced_cli --debug          # 启用调试模式
+python -m src.enhanced_cli --force-install  # Force reinstall dependencies
+python -m src.enhanced_cli --debug          # Enable debug mode
 ```
 
-### 开发者API
+### Developer API
 ```python
 from src.core.prompt_processor import PromptProcessor
 
-# 创建处理器实例
+# Create a processor instance
 processor = PromptProcessor(
     api_key="your_api_key",
     template_name="standard",
     model="openai/gpt-4"
 )
 
-# 处理单个文件
+# Process a single file
 processor.process_file("path/to/file.md")
 
-# 处理整个目录
+# Process an entire directory
 stats = processor.process_directory(
     "path/to/directory",
     file_extensions=[".md", ".txt"],
@@ -61,87 +63,87 @@ stats = processor.process_directory(
 )
 ```
 
-## 支持的模型服务商
+## Supported Model Providers
 - OpenAI
 - Anthropic
 - OpenRouter
 
-## 目录结构
+## Directory Structure
 ```
 Prompt_Factory/
-├── docs/            # 技术文档
-├── output/          # 处理结果输出
-├── logs/            # 日志文件
-├── src/             # 源代码
-│   ├── api/         # API服务器
-│   ├── core/        # 核心功能模块
-│   │   ├── model_manager.py     # 模型管理
-│   │   ├── prompt_processor.py  # 提示词处理
-│   │   └── template_manager.py  # 模板管理
-│   ├── utils/       # 工具函数
-│   │   ├── environment.py       # 环境管理
-│   │   └── cli_interface.py     # 命令行交互
-│   ├── enhanced_cli.py          # 增强命令行入口
-│   └── main.py                  # 主程序入口
-└── templates/       # 提示词模板
+├── docs/            # Documentation
+├── output/          # Output Results
+├── logs/            # Log Files
+├── src/             # Source Code
+│   ├── api/         # API Server
+│   ├── core/        # Core Modules
+│   │   ├── model_manager.py     # Model Management
+│   │   ├── prompt_processor.py  # Prompt Processing
+│   │   └── template_manager.py  # Template Management
+│   ├── utils/       # Utilities
+│   │   ├── environment.py       # Environment Manager
+│   │   └── cli_interface.py     # CLI Interface
+│   ├── enhanced_cli.py          # Enhanced CLI Entry
+│   └── main.py                  # Main Entry
+└── templates/       # Prompt Templates
 ```
 
-## 注意事项
-- API密钥仅在内存中使用，程序退出时自动清理
-- 处理结果保存在output目录，按日期和批次自动组织
-- 日志文件不包含敏感信息，确保API密钥安全
-- 建议使用 Python 3.8 或更高版本以确保最佳兼容性
+## Notes
+- API keys are only used in memory and cleared after program exit
+- Output is saved in the output directory, organized by date and batch
+- Log files contain no sensitive information, ensuring API key safety
+- It is recommended to use Python 3.8 or higher for best compatibility
 
-## 开发计划
-- 更多模型提供商集成：支持Google Gemini、Grok、DeepSeek等。
-- 速率管理机制：实现API通信速率控制。
-- 基于时区的运行计划：按时区设置运行时段。
-- 前端界面开发：设计直观高效的用户界面。
+## Roadmap
+- More model provider integrations: support Google Gemini, Grok, DeepSeek, etc.
+- Rate limiting mechanism for API communications
+- Time-zone-driven runtime scheduling
+- Frontend UI development: intuitive and efficient user interface design
 
-## 系统架构
-### 核心模块及其关系
+## System Architecture
+### Core Modules and Relationships
 ```
 +-------------------+      +------------------+
 | PromptProcessor   |----->| TemplateManager  |
-| (主处理器)         |      | (模板管理)       |
+| (Main Processor)  |      | (Template Mgmt)  |
 +-------------------+      +------------------+
          |                          |
-         | 调用                      | 加载模板
+         | Calls                    | Loads templates
          v                          v
 +-------------------+      +------------------+
 | ModelManager      |      | Templates        |
-| (模型管理)         |      | (模板文件)       |
+| (Model Mgmt)      |      | (Template Files) |
 +-------------------+      +------------------+
          |
-         | 配置访问
+         | Accesses config
          v
 +-------------------+
 | Config            |
-| (配置管理)         |
+| (Configuration)   |
 +-------------------+
 ```
 
-### 数据流程
-1. 用户通过命令行或配置文件提供参数
-2. `prompt_processor.py` 加载配置并初始化处理器
-3. 处理器通过 `template_manager.py` 加载指定模板
-4. 处理器从指定目录读取提示词文件
-5. 处理器将提示词插入到模板中进行处理
-6. 调用 `model_manager.py` 获取模型并发送请求
-7. 处理响应并保存优化后的提示词
+### Data Flow
+1. User provides parameters via CLI or config file
+2. `prompt_processor.py` loads configuration and initializes processor
+3. Processor loads the specified template using `template_manager.py`
+4. Processor reads prompt files from the given directory
+5. Processor embeds prompts into templates for processing
+6. Calls `model_manager.py` to access the model and send requests
+7. Handles responses and stores optimized prompts
 
-## 前后端分离开发指南
-后端提供RESTful API接口，详细设计请参考 [API参考文档](/docs/api_reference.md)。前端开发建议和组件设计请参考 [前端集成文档](/docs/frontend_integration.md)。
+## Frontend-Backend Separation Guide
+The backend provides RESTful API interfaces, for details refer to [API Reference](docs/api_reference.md). for frontend development suggestions and component design, refer to [Frontend Integration](docs/frontend_integration.md).
 
-## 贡献指南
-欢迎贡献代码、报告问题或提出改进建议。请遵循以下步骤：
-1. Fork项目
-2. 创建新分支 (`git checkout -b feature/your-feature`)
-3. 提交更改 (`git commit -m 'Add some feature'`)
-4. 推送到分支 (`git push origin feature/your-feature`)
-5. 提交Pull Request
+## Contribution Guide
+Contributions, bug reports, and suggestions are welcome. Please follow these steps:
+1. Fork the project
+2. Create a new branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'Add some feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Submit a Pull Request
 
-请确保您的代码符合项目代码规范，并且通过了所有测试。
+Make sure your code follows project standards and passes all tests.
 
-## 许可证
-本项目采用MIT许可证。详情请参阅[LICENSE](LICENSE)文件。
+## License
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for more information.
