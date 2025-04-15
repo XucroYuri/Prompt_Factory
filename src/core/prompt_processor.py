@@ -1,4 +1,4 @@
-\"""提示词处理模块
+"""提示词处理模块
 
 提供提示词的加载、处理和生成的功能。
 """
@@ -449,6 +449,6 @@ class PromptProcessor:
         logger.info(f"输出目录: {output_base_dir}")
         logger.info(f"处理用时: {stats['elapsed_time']:.2f} 秒")
 
-                    raise ProcessingError(f"处理文件 {file_path} 时出错", {"original_error": str(e)})
-        
+        raise ProcessingError(f"处理文件 {file_path} 时出错", {"original_error": str(e)})
+    
         return stats
