@@ -1,0 +1,17 @@
+{
+    "timestamp": 1744761231.164572,
+    "models": [
+        {
+            "id": "deepseek-chat",
+            "name": "deepseek-chat",
+            "description": "",
+            "provider": "deepseek"
+        },
+        {
+            "id": "deepseek-reasoner",
+            "name": "deepseek-reasoner",
+            "description": "",
+            "provider": "deepseek"
+        }
+    ]
+}

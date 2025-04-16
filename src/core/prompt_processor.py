@@ -25,17 +25,18 @@ class PromptProcessor:
     def __init__(self, api_key: str, template_name: str = "standard", 
                  model: str = "anthropic/claude-3.7-sonnet", temperature: float = 0.7, 
                  model_manager: Optional[ModelManager] = None,
-                 output_path: Optional[str] = None):
+                 output_path: Optional[str] = None, timeout: int = 30, max_retries: int = 2):
         """初始化提示词处理器
         
         Args:
             api_key: API密钥
             template_name: 模板名称，默认standard
-            model: 使用模型，默认gpt-4.1
+            model: 使用模型，默认anthropic/claude-3.7-sonnet
             temperature: 输出随机性
-            max_tokens: 最大令牌数
             model_manager: 模型管理器实例（可选）
             output_path: 输出路径（可选），指定结果保存的绝对路径，默认为项目根目录下的output目录
+            timeout: API请求超时时间（秒），默认30秒
+            max_retries: API请求失败后的最大重试次数，默认2次
         
         Raises:
             ProcessingError: 初始化失败
@@ -43,6 +44,8 @@ class PromptProcessor:
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
+        self.timeout = timeout
+        self.max_retries = max_retries
         
         # 设置输出路径，如果未提供则使用默认output目录
         if output_path:
@@ -185,13 +188,15 @@ class PromptProcessor:
             # 解析模型ID
             provider_id, model_name = self.model_manager.parse_model_id(self.model)
             
-            # TODO: 根据不同的服务提供商构建对应的请求
+            # 根据不同的服务提供商构建对应的请求
             if provider_id == "openai":
                 return self._call_openai_api(system_msg, user_msg, model_name)
             elif provider_id == "openrouter":
                 return self._call_openrouter_api(system_msg, user_msg, model_name)
+            elif provider_id == "deepseek":
+                return self._call_deepseek_api(system_msg, user_msg, model_name)
             else:
-                raise ProcessingError(f"不支持的服务提供商: {provider_id}")
+                raise ProcessingError(f"不支持的服务提供商: {provider_id}，请使用 'openai'、'openrouter' 或 'deepseek'")
                 
         except Exception as e:
             if isinstance(e, ProcessingError):
@@ -212,40 +217,70 @@ class PromptProcessor:
         Raises:
             ProcessingError: 调用API时出错
         """
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": model_name,
-                "messages": [
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg}
-                ],
-                "temperature": self.temperature
-            }
-            
-            response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data
-            )
-            
-            if response.status_code != 200:
-                raise ProcessingError(
-                    f"OpenAI API返回错误: {response.status_code}", 
-                    {"response": response.text}
+        current_retry = 0
+        while current_retry <= self.max_retries:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                data = {
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg}
+                    ],
+                    "temperature": self.temperature
+                }
+                
+                response = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=self.timeout
                 )
                 
-            result = response.json()
-            return result["choices"][0]["message"]["content"]
+                if response.status_code != 200:
+                    error_msg = f"OpenAI API返回错误: {response.status_code} / OpenAI API returned error: {response.status_code}"
+                    
+                    # 检查是否需要重试（对于429、500、502、503、504等错误）
+                    if response.status_code in [429, 500, 502, 503, 504] and current_retry < self.max_retries:
+                        current_retry += 1
+                        # 指数退避策略，每次重试等待时间翻倍
+                        time.sleep(2 ** current_retry)
+                        continue
+                        
+                    raise ProcessingError(
+                        error_msg, 
+                        {"response": response.text}
+                    )
+                    
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
+        
+            except requests.exceptions.Timeout:
+                error_msg = f"调用OpenAI API超时 / OpenAI API request timeout"
+                if current_retry < self.max_retries:
+                    current_retry += 1
+                    time.sleep(1)
+                    continue
+                raise ProcessingError(error_msg, {"timeout": f"{self.timeout}秒"})
+            except requests.exceptions.ConnectionError:
+                error_msg = f"调用OpenAI API连接错误 / OpenAI API connection error"
+                if current_retry < self.max_retries:
+                    current_retry += 1
+                    time.sleep(2)
+                    continue
+                raise ProcessingError(error_msg, {"suggestion": "请检查网络连接或API服务状态 / Please check your network connection or API service status"})
+            except Exception as e:
+                if isinstance(e, ProcessingError):
+                    raise e
+                error_msg = f"调用OpenAI API时出错 / Error calling OpenAI API"
+                raise ProcessingError(error_msg, {"original_error": str(e)})
             
-        except Exception as e:
-            if isinstance(e, ProcessingError):
-                raise e
-            raise ProcessingError("调用OpenAI API时出错", {"original_error": str(e)})
+            # 如果执行到这里，说明请求成功，跳出重试循环
+            break
     
     def _call_openrouter_api(self, system_msg: str, user_msg: str, model_name: str) -> str:
         """调用OpenRouter API
@@ -261,40 +296,149 @@ class PromptProcessor:
         Raises:
             ProcessingError: 调用API时出错
         """
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": model_name,
-                "messages": [
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg}
-                ],
-                "temperature": self.temperature
-            }
-            
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=data
-            )
-            
-            if response.status_code != 200:
-                raise ProcessingError(
-                    f"OpenRouter API返回错误: {response.status_code}", 
-                    {"response": response.text}
+        current_retry = 0
+        while current_retry <= self.max_retries:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                data = {
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg}
+                    ],
+                    "temperature": self.temperature
+                }
+                
+                response = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=self.timeout
                 )
                 
-            result = response.json()
-            return result["choices"][0]["message"]["content"]
+                if response.status_code != 200:
+                    error_msg = f"OpenRouter API返回错误: {response.status_code} / OpenRouter API returned error: {response.status_code}"
+                    
+                    # 检查是否需要重试（对于429、500、502、503、504等错误）
+                    if response.status_code in [429, 500, 502, 503, 504] and current_retry < self.max_retries:
+                        current_retry += 1
+                        # 指数退避策略，每次重试等待时间翻倍
+                        time.sleep(2 ** current_retry)
+                        continue
+                        
+                    raise ProcessingError(
+                        error_msg, 
+                        {"response": response.text}
+                    )
+                    
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
             
-        except Exception as e:
-            if isinstance(e, ProcessingError):
-                raise e
-            raise ProcessingError("调用OpenRouter API时出错", {"original_error": str(e)})
+            except requests.exceptions.Timeout:
+                error_msg = f"调用OpenRouter API超时 / OpenRouter API request timeout"
+                if current_retry < self.max_retries:
+                    current_retry += 1
+                    time.sleep(1)
+                    continue
+                raise ProcessingError(error_msg, {"timeout": f"{self.timeout}秒"})
+            except requests.exceptions.ConnectionError:
+                error_msg = f"调用OpenRouter API连接错误 / OpenRouter API connection error"
+                if current_retry < self.max_retries:
+                    current_retry += 1
+                    time.sleep(2)
+                    continue
+                raise ProcessingError(error_msg, {"suggestion": "请检查网络连接或API服务状态 / Please check your network connection or API service status"})
+            except Exception as e:
+                if isinstance(e, ProcessingError):
+                    raise e
+                error_msg = f"调用OpenRouter API时出错 / Error calling OpenRouter API"
+                raise ProcessingError(error_msg, {"original_error": str(e)})
+                
+                # 如果执行到这里，说明请求成功，跳出重试循环
+                break
+            
+    def _call_deepseek_api(self, system_msg: str, user_msg: str, model_name: str) -> str:
+        """调用DeepSeek API
+        
+        Args:
+            system_msg: 系统消息
+            user_msg: 用户消息
+            model_name: 模型名称
+            
+        Returns:
+            str: API响应
+            
+        Raises:
+            ProcessingError: 调用API时出错
+        """
+        current_retry = 0
+        while current_retry <= self.max_retries:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                data = {
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg}
+                    ],
+                    "temperature": self.temperature
+                }
+                
+                response = requests.post(
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers=headers,
+                    json=data,
+                    timeout=self.timeout
+                )
+                
+                if response.status_code != 200:
+                    error_msg = f"DeepSeek API返回错误: {response.status_code} / DeepSeek API returned error: {response.status_code}"
+                    
+                    # 检查是否需要重试（对于429、500、502、503、504等错误）
+                    if response.status_code in [429, 500, 502, 503, 504] and current_retry < self.max_retries:
+                        current_retry += 1
+                        # 指数退避策略，每次重试等待时间翻倍
+                        time.sleep(2 ** current_retry)
+                        continue
+                        
+                    raise ProcessingError(
+                        error_msg, 
+                        {"response": response.text}
+                    )
+                    
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
+                
+            except requests.exceptions.Timeout:
+                error_msg = f"调用DeepSeek API超时 / DeepSeek API request timeout"
+                if current_retry < self.max_retries:
+                    current_retry += 1
+                    time.sleep(1)
+                    continue
+                raise ProcessingError(error_msg, {"timeout": f"{self.timeout}秒"})
+            except requests.exceptions.ConnectionError:
+                error_msg = f"调用DeepSeek API连接错误 / DeepSeek API connection error"
+                if current_retry < self.max_retries:
+                    current_retry += 1
+                    time.sleep(2)
+                    continue
+                raise ProcessingError(error_msg, {"suggestion": "请检查网络连接或API服务状态 / Please check your network connection or API service status"})
+            except Exception as e:
+                if isinstance(e, ProcessingError):
+                    raise e
+                error_msg = f"调用DeepSeek API时出错 / Error calling DeepSeek API"
+                raise ProcessingError(error_msg, {"original_error": str(e)})
+            
+            # 如果执行到这里，说明请求成功，跳出重试循环
+            break
     
     def set_template(self, template_name: str) -> bool:
         """设置模板
@@ -333,6 +477,9 @@ class PromptProcessor:
         Raises:
             ProcessingError: 处理目录时出错
         """
+        # 标准化目录路径，确保在不同操作系统下都能正确处理
+        directory_path = os.path.normpath(directory_path)
+        
         if not os.path.exists(directory_path) or not os.path.isdir(directory_path):
             raise ProcessingError(f"目录不存在: {directory_path}")
         
@@ -449,6 +596,4 @@ class PromptProcessor:
         logger.info(f"输出目录: {output_base_dir}")
         logger.info(f"处理用时: {stats['elapsed_time']:.2f} 秒")
 
-        raise ProcessingError(f"处理文件 {file_path} 时出错", {"original_error": str(e)})
-    
         return stats

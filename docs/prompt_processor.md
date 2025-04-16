@@ -4,17 +4,18 @@
 
 提示词处理模块(`prompt_processor.py`)负责提示词加载、处理和生成，是系统核心组件，与AI模型交互并应用模板处理提示词。
 
+## 依赖环境
+- Python >= 3.8，建议在macOS/Linux下运行。
+- 安装依赖：
+  ```bash
+  pip3 install -r requirements.txt
+  ```
+- 需联网，API Key（OpenAI/OpenRouter等）已准备好。
+
+## 多语言Locale
+如需定制界面/结果语言，可参考 `docs/locale/README_zh.md` 定义 locale 和本地化模板。
+
 ## 核心类
-
-### ProcessingError
-
-提示词处理异常类，用于统一异常处理。
-
-```python
-class ProcessingError(Exception):
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None)
-```
-
 ### PromptProcessor
 
 提示词处理器，负责处理和生成提示词。
@@ -30,6 +31,15 @@ class PromptProcessor:
     def process_directory(self, directory_path: str, recursive: bool = True, 
                           file_extensions: List[str] = None) -> Dict[str, Any]
     def generate_response(self, prompt: str) -> Optional[str]
+```
+
+### ProcessingError
+
+提示词处理异常类，用于统一异常处理。
+
+```python
+class ProcessingError(Exception):
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None)
 ```
 
 ## 功能特性
@@ -62,6 +72,14 @@ stats = processor.process_directory(
 # 处理单个提示词
 result = processor.process_content("请优化这个提示词")
 ```
+
+## 常见问题
+- requests或依赖报错：请运行 `pip3 install -r requirements.txt`
+- API Key 校验失败或超时：请确认网络畅通，Key有效。
+- 文件/目录不存在：请确认路径无误。
+
+## 详细API和配置
+详见`docs/model_manager.md`、`docs/template_manager.md`。
 
 ## 扩展计划
 

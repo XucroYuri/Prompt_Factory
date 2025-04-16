@@ -113,3 +113,15 @@ class GeminiProvider(ModelProvider):
 - 安全暂停机制
 - 随机时间间隔
 - 阈值控制（RPM≤50%±10%, TPM≤80%±5%, RPD≤80%±5%）
+
+
+// 默认服务商及模型
++## 默认服务提供商及模型
++Prompt Factory 现默认将 DeepSeek 作为首选服务提供商，默认模型为 deepseek-chat。
++
++支持的服务提供商（按优先顺序）：
++- DeepSeek（默认，模型 deepseek-chat）
++- OpenAI
++- OpenRouter
++
++在未指定 provider/model_name 时，默认使用 deepseek/deepseek-chat。

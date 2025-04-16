@@ -10,7 +10,7 @@
 
 提供AI模型管理和调用功能，支持多种服务提供商。
 
-- 已支持提供商：OpenAI、OpenRouter
+- 已支持提供商：DeepSeek（默认）、OpenAI、OpenRouter
 - 提供模型查询、缓存和服务提供商统一抽象接口
 - 支持自定义服务提供商扩展
 
@@ -37,3 +37,6 @@
 - 安全的API密钥管理
 - 用户偏好设置
 - 应用运行时配置
+
+```
+- 默认模型：deepseek-chat（DeepSeek）、其他如OpenAI/gpt-3.5-turbo、OpenRouter/compatible

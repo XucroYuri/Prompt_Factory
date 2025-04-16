@@ -8,7 +8,11 @@ import sys
 import time
 import logging
 import argparse
+import platform
 from typing import Dict, List, Any, Optional, Tuple
+
+# 导入操作系统相关工具
+from src.utils.environment import get_os_type, get_path_separator, OS_TYPE_WINDOWS, OS_TYPE_MACOS, OS_TYPE_LINUX
 
 # 设置基本日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -64,15 +68,25 @@ def run_startup_sequence(args: argparse.Namespace) -> bool:
     else:
         missing = env_info['dependencies']['required']['missing']
         print_warning(f"缺少必需依赖: {', '.join(missing)}")
+        
+    # 显示操作系统信息
+    os_type = env_info.get('os_type', get_os_type())
+    print_info(f"检测到操作系统类型: {os_type}")
+    if os_type == OS_TYPE_WINDOWS:
+        print_info("Windows环境下请使用反斜杠(\\)作为路径分隔符")
+    else:
+        print_info("Unix-like环境下请使用正斜杠(/)作为路径分隔符")
     
     return True
 
 
-def test_api_connection(api_keys: Dict[str, str]) -> Dict[str, bool]:
+def test_api_connection(api_keys: Dict[str, str], timeout: int = 10, max_retries: int = 2) -> Dict[str, bool]:
     """测试API连接
     
     Args:
         api_keys: API密钥字典
+        timeout: API请求超时时间（秒），默认10秒
+        max_retries: API请求失败后的最大重试次数，默认2次
     
     Returns:
         Dict[str, bool]: 各服务提供商的连接测试结果
@@ -82,18 +96,18 @@ def test_api_connection(api_keys: Dict[str, str]) -> Dict[str, bool]:
     
     # 测试各提供商的API连接
     for provider, api_key in api_keys.items():
-        print_info(f"正在测试 {provider} API连接...")
+        print_info(f"正在测试 {provider} API连接... / Testing {provider} API connection...")
         try:
-            success = validate_api_key(api_key, provider)
+            success = validate_api_key(api_key, provider, timeout=timeout, max_retries=max_retries)
             results[provider] = success
             
             if success:
-                print_success(f"{provider} API连接成功")
+                print_success(f"{provider} API连接成功 / {provider} API connection successful")
             else:
-                print_error(f"{provider} API连接失败")
+                print_error(f"{provider} API连接失败 / {provider} API connection failed")
                 
         except Exception as e:
-            print_error(f"{provider} API连接时出错: {e}")
+            print_error(f"{provider} API连接时出错: {e} / Error connecting to {provider} API: {e}")
             results[provider] = False
     
     return results
@@ -114,7 +128,9 @@ def process_files(config: Dict[str, Any]) -> bool:
             api_key=config["api_key"],
             template_name=config.get("template", "standard"),
             model=config.get("model", "openai/gpt-3.5-turbo"),
-            output_path=config.get("output_path")
+            output_path=config.get("output_path"),
+            timeout=config.get("timeout", 30),
+            max_retries=config.get("max_retries", 2)
         )
         
         # 处理输入路径

@@ -134,25 +134,22 @@ def collect_api_keys() -> Dict[str, str]:
     Returns:
         Dict[str, str]: API密钥字典
     """
+    providers = [
+        {"provider": "anthropic", "name": "Anthropic API密钥"},
+        {"provider": "deepseek", "name": "DeepSeek API密钥"},
+        {"provider": "openai", "name": "OpenAI API密钥"},
+        {"provider": "openrouter", "name": "OpenRouter API密钥"},
+    ]
+    
     api_keys = {}
+    print_header("API密钥设置 / API Key Settings")
+    print_info("请依次输入各服务提供商的API密钥（输入为空则跳过该提供商）: / Please enter API keys for each provider (skip by leaving empty):")
     
-    print_header("API密钥设置")
-    print_info("请依次输入各服务提供商的API密钥（输入为空则跳过该提供商）:")
-    
-    # OpenAI API密钥
-    openai_key = get_input("OpenAI API密钥", password=True)
-    if openai_key:
-        api_keys["openai"] = openai_key
-    
-    # Anthropic API密钥
-    anthropic_key = get_input("Anthropic API密钥", password=True)
-    if anthropic_key:
-        api_keys["anthropic"] = anthropic_key
-    
-    # OpenRouter API密钥
-    openrouter_key = get_input("OpenRouter API密钥", password=True)
-    if openrouter_key:
-        api_keys["openrouter"] = openrouter_key
+    # 使用providers列表循环获取密钥
+    for item in providers:
+        key = get_input(f"{item['name']} / {item['provider'].capitalize()} API Key", password=True)
+        if key:
+            api_keys[item["provider"]] = key
     
     return api_keys
 

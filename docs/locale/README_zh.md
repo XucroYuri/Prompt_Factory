@@ -17,26 +17,52 @@
 - pip 20.0+
 
 ### 安装步骤
+
+#### 适用于所有平台
 1. 克隆仓库
    ```bash
    git clone https://github.com/XucroYuri/Prompt_Factory.git
    cd Prompt_Factory
-   python -m src.enhanced_cli
    ```
-   程序会自动检测环境、安装依赖并引导完成配置。
+
+#### macOS/Linux
+```bash
+python3 -m src.enhanced_cli
+```
+
+#### Windows
+```cmd
+python -m src.enhanced_cli
+```
+
+程序会自动检测环境、安装依赖并引导完成配置。
 
 ## 使用流程
-1. 运行程序：`python -m src.enhanced_cli`
+
+### 通用步骤
+1. 运行程序：
+   - **macOS/Linux**：`python3 -m src.enhanced_cli`
+   - **Windows**：`python -m src.enhanced_cli`
 2. 按提示输入API密钥（支持OpenAI、Anthropic、OpenRouter）
 3. 自动测试API连接
 4. 选择服务提供商和模型
 5. 选择提示词模板
 6. 输入要处理的文件或目录路径
+   - Windows系统使用反斜杠作为路径分隔符（例如：`C:\folder\file.txt`）
+   - macOS/Linux系统使用正斜杠（例如：`/folder/file.txt`）
 7. 处理完成后，结果保存到output目录
 
 ## 高级用法
 ### 命令行参数
+
+#### macOS/Linux
 ```bash
+python3 -m src.enhanced_cli --force-install  # 强制重新安装依赖
+python3 -m src.enhanced_cli --debug          # 启用调试模式
+```
+
+#### Windows
+```cmd
 python -m src.enhanced_cli --force-install  # 强制重新安装依赖
 python -m src.enhanced_cli --debug          # 启用调试模式
 ```
@@ -64,6 +90,7 @@ stats = processor.process_directory(
 ```
 
 ## 支持的模型服务商
+- DeepSeek
 - OpenAI
 - Anthropic
 - OpenRouter

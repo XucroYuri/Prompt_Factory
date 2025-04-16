@@ -6,10 +6,17 @@
 import os
 import sys
 import logging
+import platform
 import subprocess
 import importlib.util
 from typing import Dict, List, Tuple, Optional
 from typing import Any, Dict, Tuple
+
+# 操作系统类型常量
+OS_TYPE_WINDOWS = "windows"
+OS_TYPE_MACOS = "macos"
+OS_TYPE_LINUX = "linux"
+OS_TYPE_UNKNOWN = "unknown"
 
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -91,73 +98,159 @@ def install_dependencies(packages: List[str]) -> bool:
         return False
 
 
-def validate_api_key(api_key: str, provider: str = "anthropic") -> bool:
+def validate_api_key(api_key: str, provider: str = "anthropic", timeout: int = 10, max_retries: int = 2) -> bool:
     """验证API密钥是否有效（发送一个简单请求）
     
     Args:
         api_key: API密钥
         provider: 服务提供商，默认为anthropic
+        timeout: API请求超时时间（秒），默认10秒
+        max_retries: API请求失败后的最大重试次数，默认2次
         
     Returns:
         bool: 密钥是否有效
     """
-    try:
-        import requests
+    import requests
+    import time
+    
+    # 定义重试计数
+    retry_count = 0
+    
+    while retry_count <= max_retries:
+        try:
+            # 根据提供商选择验证端点和方法
+            if provider == "anthropic":
+                headers = {
+                    "x-api-key": api_key,
+                    "content-type": "application/json",
+                    "anthropic-version": "2023-06-01"
+                }
+                response = requests.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json={
+                        "model": "claude-3-haiku-20240307",
+                        "messages": [{"role": "user", "content": "Hello"}]
+                    },
+                    timeout=timeout
+                )
+            elif provider == "openai":
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+                response = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": "gpt-3.5-turbo",
+                        "messages": [{"role": "user", "content": "Hello"}]
+                    },
+                    timeout=timeout
+                )
+            elif provider == "openrouter":
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+                response = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": "anthropic/claude-3-haiku-20240307",
+                        "messages": [{"role": "user", "content": "Hello"}]
+                    },
+                    timeout=timeout
+                )
+            elif provider == "deepseek":
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+                response = requests.post(
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": "Hello"}]
+                    },
+                    timeout=timeout
+                )
+            else:
+                logger.error(f"不支持的服务提供商: {provider} / Unsupported provider: {provider}")
+                return False
+            
+            if response.status_code == 200:
+                return True
+                
+            # 对于可重试的错误码进行重试
+            if response.status_code in [429, 500, 502, 503, 504] and retry_count < max_retries:
+                retry_count += 1
+                # 使用指数退避策略
+                wait_time = 2 ** retry_count
+                logger.warning(f"API连接测试返回错误 {response.status_code}，正在重试 {retry_count}/{max_retries}... / "
+                             f"API connection test returned error {response.status_code}, retrying {retry_count}/{max_retries}...")
+                time.sleep(wait_time)
+                continue
+                
+            # 对于无法重试或已达到最大重试次数的错误
+            logger.error(f"{provider} API连接测试失败，状态码: {response.status_code} / "
+                      f"{provider} API connection test failed, status code: {response.status_code}")
+            return False
         
-        # 根据提供商选择验证端点和方法
-        if provider == "anthropic":
-            headers = {
-                "x-api-key": api_key,
-                "content-type": "application/json",
-                "anthropic-version": "2023-06-01"
-            }
-            response = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json={
-                    "model": "claude-3-haiku-20240307",
-                    "messages": [{"role": "user", "content": "Hello"}]
-                }
-            )
-        elif provider == "openai":
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json={
-                    "model": "gpt-3.5-turbo",
-                    "messages": [{"role": "user", "content": "Hello"}]
-                }
-            )
-        elif provider == "openrouter":
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json={
-                    "model": "anthropic/claude-3-haiku-20240307",
-                    "messages": [{"role": "user", "content": "Hello"}]
-                }
-            )
-        else:
-            logger.error(f"不支持的服务提供商: {provider}")
+        except requests.exceptions.Timeout:
+            if retry_count < max_retries:
+                retry_count += 1
+                logger.warning(f"{provider} API连接测试超时，正在重试 {retry_count}/{max_retries}... / "
+                             f"{provider} API connection test timeout, retrying {retry_count}/{max_retries}...")
+                time.sleep(1)
+                continue
+            logger.error(f"{provider} API连接测试超时 / {provider} API connection test timeout")
             return False
             
-        if response.status_code == 200:
-            return True
-        else:
-            logger.error(f"API密钥验证失败: {response.status_code} - {response.text}")
+        except requests.exceptions.ConnectionError:
+            if retry_count < max_retries:
+                retry_count += 1
+                logger.warning(f"{provider} API连接测试网络错误，正在重试 {retry_count}/{max_retries}... / "
+                             f"{provider} API connection test network error, retrying {retry_count}/{max_retries}...")
+                time.sleep(2)
+                continue
+            logger.error(f"{provider} API连接测试网络错误 / {provider} API connection test network error")
             return False
             
-    except Exception as e:
-        logger.error(f"验证API密钥时出错: {e}")
-        return False
+        except Exception as e:
+            logger.error(f"{provider} API连接测试出现未知错误: {e} / {provider} API connection test unknown error: {e}")
+            return False
+    
+    # 如果所有重试都失败了
+    return False
+
+
+def get_os_type() -> str:
+    """检测当前操作系统类型
+    
+    Returns:
+        str: 操作系统类型 ("windows", "macos", "linux", "unknown")
+    """
+    system = platform.system().lower()
+    
+    if system == "windows":
+        return OS_TYPE_WINDOWS
+    elif system == "darwin":
+        return OS_TYPE_MACOS
+    elif system == "linux":
+        return OS_TYPE_LINUX
+    else:
+        return OS_TYPE_UNKNOWN
+
+
+def get_path_separator() -> str:
+    """获取当前操作系统的路径分隔符
+    
+    Returns:
+        str: 路径分隔符 ("/" 或 "\\")
+    """
+    return os.path.sep
 
 
 def setup_environment(force_install: bool = False, auto_fix: bool = True) -> Tuple[bool, Dict[str, Any]]:
@@ -172,6 +265,8 @@ def setup_environment(force_install: bool = False, auto_fix: bool = True) -> Tup
     """
     env_info = {
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "os_type": get_os_type(),
+        "path_separator": get_path_separator(),
         "directories": {},
         "dependencies": {"required": {}, "optional": {}}
     }

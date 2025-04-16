@@ -33,6 +33,14 @@ class TemplateManager:
         # 当前激活的模板名称
         self.active_template: Optional[str] = None
     
+    def list_templates(self) -> List[str]:
+        """获取可用模板列表（get_available_templates的别名）
+        
+        Returns:
+            List[str]: 模板名称列表
+        """
+        return self.get_available_templates()
+    
     def get_available_templates(self) -> List[str]:
         """获取可用模板列表
         

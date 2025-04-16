@@ -104,12 +104,14 @@ class ModelManager:
         self.providers: Dict[str, ModelProvider] = {}
         
         # 注册标准服务提供商
+        from .deepseek_provider import DeepSeekProvider
         from .openai_provider import OpenAIProvider
         from .openrouter_provider import OpenRouterProvider
-        from .deepseek_provider import DeepSeekProvider
+        from .anthropic_provider import AnthropicProvider
+        self.register_provider(DeepSeekProvider(cache_dir))
         self.register_provider(OpenAIProvider(cache_dir))
         self.register_provider(OpenRouterProvider(cache_dir))
-        self.register_provider(DeepSeekProvider(cache_dir))
+        self.register_provider(AnthropicProvider(cache_dir))
     
     def register_provider(self, provider: ModelProvider) -> None:
         """注册新的服务提供商
@@ -203,8 +205,8 @@ class ModelManager:
         """
         parts = model_id.split('/', 1)
         if len(parts) != 2:
-            # 默认视为OpenRouter模型
-            return "openrouter", model_id
+            # 默认视为DeepSeek模型
+            return "deepseek", model_id
         return parts[0], parts[1]
     
     def get_model_info(self, model_id: str, all_models: Dict[str, List[Dict[str, Any]]]) -> Optional[Dict[str, Any]]:
