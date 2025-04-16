@@ -3,10 +3,10 @@
   "input_path": "/Users/xuyu/Documents/github/Prompt_Library_Public/agent/职业",
   "output_path": "/Users/xuyu/Desktop/app/Prompt_Factory/output",
   "start_time": 1744765975.8304892,
-  "end_time": null,
-  "status": "running",
+  "end_time": 1744766070.4339468,
+  "status": "failed",
   "stats": {
-    "total": 0,
+    "total": 270,
     "processed": 0,
     "success": 0,
     "failed": 0,

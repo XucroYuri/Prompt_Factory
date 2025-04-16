@@ -7,9 +7,13 @@ import os
 import json
 import requests
 import time
+import logging
 from typing import List, Dict, Any, Optional, Tuple, Union, Callable
 from .template_manager import TemplateManager
 from .model_manager import ModelManager
+
+# 设置日志
+logger = logging.getLogger('prompt_processor')
 
 
 class ProcessingError(Exception):
