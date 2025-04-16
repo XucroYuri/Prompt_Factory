@@ -268,6 +268,17 @@ class PromptProcessor:
                     )
                     
                 result = response.json()
+                # 记录成功响应的请求ID和响应信息
+                logger.info(f"DeepSeek API请求成功 [{request_id}]: 模型={model_name}")
+                
+                # 添加调试信息，如响应token数量等
+                try:
+                    usage_info = result.get("usage", {})
+                    if usage_info:
+                        logger.debug(f"DeepSeek API请求完成 [{request_id}]: 输入tokens={usage_info.get('prompt_tokens', 'N/A')}, 输出tokens={usage_info.get('completion_tokens', 'N/A')}")
+                except Exception as usage_err:
+                    logger.debug(f"无法获取使用信息 [{request_id}]: {str(usage_err)}")
+                
                 return result["choices"][0]["message"]["content"]
         
             except requests.exceptions.Timeout:
@@ -359,6 +370,17 @@ class PromptProcessor:
                     )
                     
                 result = response.json()
+                # 记录成功响应的请求ID和响应信息
+                logger.info(f"DeepSeek API请求成功 [{request_id}]: 模型={model_name}")
+                
+                # 添加调试信息，如响应token数量等
+                try:
+                    usage_info = result.get("usage", {})
+                    if usage_info:
+                        logger.debug(f"DeepSeek API请求完成 [{request_id}]: 输入tokens={usage_info.get('prompt_tokens', 'N/A')}, 输出tokens={usage_info.get('completion_tokens', 'N/A')}")
+                except Exception as usage_err:
+                    logger.debug(f"无法获取使用信息 [{request_id}]: {str(usage_err)}")
+                
                 return result["choices"][0]["message"]["content"]
             
             except requests.exceptions.Timeout:
@@ -431,52 +453,238 @@ class PromptProcessor:
                     timeout=self.timeout
                 )
                 
+                # 为每个请求生成唯一标识符
+                request_id = f"req-{int(time.time())}-{hash(str(data)) % 10000:04d}"
+                
+                # 记录请求信息
+                logger.debug(f"DeepSeek API请求开始 [{request_id}]: 模型={model_name}")
+                
                 if response.status_code != 200:
-                    error_msg = f"DeepSeek API返回错误: {response.status_code} / DeepSeek API returned error: {response.status_code}"
+                    # 详细分析HTTP错误类型
+                    error_details = {
+                        "request_id": request_id,
+                        "status_code": response.status_code,
+                        "response": response.text
+                    }
+                    
+                    # 根据状态码分类处理
+                    if response.status_code == 400:
+                        error_type = "请求无效 / Bad Request"
+                        error_details["error_type"] = "bad_request"
+                        error_details["suggestion"] = "请求参数有误，请检查请求格式 / Invalid request parameters, please check request format"
+                    elif response.status_code == 401:
+                        error_type = "身份验证失败 / Unauthorized"
+                        error_details["error_type"] = "unauthorized"
+                        error_details["suggestion"] = "API密钥无效或已过期，请检查API密钥 / Invalid or expired API key, please check your API key"
+                    elif response.status_code == 403:
+                        error_type = "权限不足 / Forbidden"
+                        error_details["error_type"] = "forbidden"
+                        error_details["suggestion"] = "没有足够的权限访问该资源，请检查账户权限 / Insufficient permission to access the resource, please check account permissions"
+                    elif response.status_code == 404:
+                        error_type = "资源不存在 / Not Found"
+                        error_details["error_type"] = "not_found"
+                        error_details["suggestion"] = "请求的资源不存在，请检查API端点或模型名称 / Requested resource not found, please check API endpoint or model name"
+                    elif response.status_code == 429:
+                        error_type = "请求过多 / Too Many Requests"
+                        error_details["error_type"] = "rate_limited"
+                        error_details["suggestion"] = "已超出API速率限制，请降低请求频率或提高账户等级 / API rate limit exceeded, please reduce request frequency or upgrade account"
+                    elif response.status_code == 500:
+                        error_type = "服务器内部错误 / Internal Server Error"
+                        error_details["error_type"] = "server_error"
+                        error_details["suggestion"] = "DeepSeek服务器内部错误，请稍后重试 / DeepSeek server internal error, please try again later"
+                    elif response.status_code in [502, 503, 504]:
+                        error_type = "服务不可用 / Service Unavailable"
+                        error_details["error_type"] = "service_unavailable"
+                        error_details["suggestion"] = "DeepSeek服务暂时不可用，请稍后重试 / DeepSeek service temporarily unavailable, please try again later"
+                    else:
+                        error_type = f"未知HTTP错误 / Unknown HTTP Error: {response.status_code}"
+                        error_details["error_type"] = "unknown_http_error"
+                        error_details["suggestion"] = "发生未知HTTP错误，请联系DeepSeek支持 / Unknown HTTP error occurred, please contact DeepSeek support"
+                    
+                    error_msg = f"DeepSeek API {error_type} / DeepSeek API {error_type}"
+                    
+                    # 记录详细错误日志
+                    logger.error(f"DeepSeek API请求失败 [{request_id}]: {error_type} - 状态码: {response.status_code}")
+                    
+                    # 尝试解析响应内容
+                    try:
+                        error_json = response.json()
+                        if 'error' in error_json:
+                            error_details["api_error"] = error_json['error']
+                    except Exception as json_err:
+                        error_details["response_parse_error"] = str(json_err)
                     
                     # 检查是否需要重试（对于429、500、502、503、504等错误）
                     if response.status_code in [429, 500, 502, 503, 504] and current_retry < self.max_retries:
                         current_retry += 1
                         # 指数退避策略，每次重试等待时间翻倍
-                        time.sleep(2 ** current_retry)
+                        wait_time = self.retry_interval * (2 ** current_retry)
+                        wait_time = min(wait_time, 60)  # 限制最大等待时间为60秒
+                        logger.info(f"DeepSeek API返回错误码 [{request_id}] {response.status_code}，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                        time.sleep(wait_time)
                         continue
                         
-                    raise ProcessingError(
-                        error_msg, 
-                        {"response": response.text}
-                    )
+                    raise ProcessingError(error_msg, error_details)
                     
                 result = response.json()
+                # 记录成功响应的请求ID和响应信息
+                logger.info(f"DeepSeek API请求成功 [{request_id}]: 模型={model_name}")
+                
+                # 添加调试信息，如响应token数量等
+                try:
+                    usage_info = result.get("usage", {})
+                    if usage_info:
+                        logger.debug(f"DeepSeek API请求完成 [{request_id}]: 输入tokens={usage_info.get('prompt_tokens', 'N/A')}, 输出tokens={usage_info.get('completion_tokens', 'N/A')}")
+                except Exception as usage_err:
+                    logger.debug(f"无法获取使用信息 [{request_id}]: {str(usage_err)}")
+                
                 return result["choices"][0]["message"]["content"]
                 
-            except requests.exceptions.Timeout:
-                error_msg = f"调用DeepSeek API超时 / DeepSeek API request timeout"
+            except requests.exceptions.Timeout as timeout_err:
+                # 为每次请求生成唯一标识符，便于跟踪
+                request_id = f"req-{int(time.time())}-{hash(str(timeout_err)) % 10000:04d}"
+                
+                # 详细分析超时类型
+                error_details = {
+                    "request_id": request_id,
+                    "timeout_value": f"{self.timeout}秒",
+                    "original_error": str(timeout_err)
+                }
+                
+                # 检测超时原因
+                if "read timeout" in str(timeout_err):
+                    error_type = "读取超时 / Read Timeout"
+                    error_details["error_type"] = "read_timeout"
+                    error_details["suggestion"] = "服务器响应时间过长，请稍后重试或增加超时设置 / Server response time too long, please try again later or increase timeout setting"
+                elif "connect timeout" in str(timeout_err):
+                    error_type = "连接超时 / Connect Timeout"
+                    error_details["error_type"] = "connect_timeout"
+                    error_details["suggestion"] = "无法连接到服务器，请检查网络连接或服务器状态 / Cannot connect to server, please check network connection or server status"
+                else:
+                    error_type = "请求超时 / Request Timeout"
+                    error_details["error_type"] = "general_timeout"
+                    error_details["suggestion"] = "请求处理超时，请检查网络状况或稍后重试 / Request processing timed out, please check network condition or try again later"
+                
+                # 记录详细错误日志
+                logger.error(f"DeepSeek API {error_type} [{request_id}]: {str(timeout_err)}")
+                
+                error_msg = f"调用DeepSeek API {error_type} / DeepSeek API {error_type}"
+                
                 if current_retry < self.max_retries:
                     current_retry += 1
                     # 超时情况下也使用指数退避策略
                     wait_time = self.retry_interval * (2 ** current_retry)
                     wait_time = min(wait_time, 30) # 限制最大等待时间为30秒
-                    logger.info(f"DeepSeek API请求超时，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    logger.info(f"DeepSeek API请求超时 [{request_id}]，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
                     time.sleep(wait_time)
                     continue
-                raise ProcessingError(error_msg, {"timeout": f"{self.timeout}秒"})
-            except requests.exceptions.ConnectionError:
-                error_msg = f"调用DeepSeek API连接错误 / DeepSeek API connection error"
+                raise ProcessingError(error_msg, error_details)
+            except requests.exceptions.ConnectionError as conn_err:
+                # 为每次请求生成唯一标识符，便于跟踪
+                request_id = f"req-{int(time.time())}-{hash(str(conn_err)) % 10000:04d}"
+                
+                # 详细分析连接错误类型
+                error_details = {"request_id": request_id}
+                
+                # 根据错误类型细分错误信息
+                if "getaddrinfo failed" in str(conn_err) or "Name or service not known" in str(conn_err):
+                    error_type = "DNS解析失败 / DNS Resolution Failed"
+                    error_details["error_type"] = "dns_error"
+                    error_details["suggestion"] = "请检查网络DNS设置或域名是否正确 / Please check your DNS settings or domain name"
+                elif "Connection refused" in str(conn_err):
+                    error_type = "连接被拒绝 / Connection Refused"
+                    error_details["error_type"] = "connection_refused"
+                    error_details["suggestion"] = "目标服务器拒绝连接，请检查服务是否可用 / Target server refused connection, please check if service is available"
+                elif "SSLError" in str(conn_err) or "SSL" in str(conn_err):
+                    error_type = "SSL证书错误 / SSL Certificate Error"
+                    error_details["error_type"] = "ssl_error"
+                    error_details["suggestion"] = "SSL连接异常，可能是证书问题 / SSL connection issue, possibly certificate related"
+                elif "Timeout" in str(conn_err) or "timed out" in str(conn_err):
+                    error_type = "连接超时 / Connection Timeout"
+                    error_details["error_type"] = "connection_timeout"
+                    error_details["suggestion"] = "连接超时，请检查网络速度或服务器响应时间 / Connection timed out, please check network speed or server response time"
+                elif "Proxy" in str(conn_err):
+                    error_type = "代理错误 / Proxy Error"
+                    error_details["error_type"] = "proxy_error"
+                    error_details["suggestion"] = "代理服务器连接异常，请检查代理设置 / Proxy connection error, please check proxy settings"
+                else:
+                    error_type = "网络连接错误 / Network Connection Error"
+                    error_details["error_type"] = "general_connection_error"
+                    error_details["suggestion"] = "请检查网络连接状态 / Please check your network connection status"
+                
+                # 添加错误原始信息
+                error_details["original_error"] = str(conn_err)
+                
+                # 添加网络诊断信息
+                import socket
+                try:
+                    # 尝试获取本地主机名和IP地址
+                    hostname = socket.gethostname()
+                    local_ip = socket.gethostbyname(hostname)
+                    error_details["network_info"] = {
+                        "hostname": hostname,
+                        "local_ip": local_ip
+                    }
+                    
+                    # 尝试解析API域名
+                    try:
+                        api_ip = socket.gethostbyname("api.deepseek.com")
+                        error_details["network_info"]["api_dns_resolved"] = True
+                        error_details["network_info"]["api_ip"] = api_ip
+                    except socket.gaierror:
+                        error_details["network_info"]["api_dns_resolved"] = False
+                except Exception as net_diag_err:
+                    error_details["network_diagnostics_error"] = str(net_diag_err)
+                
+                error_msg = f"调用DeepSeek API {error_type} / DeepSeek API {error_type}"
+                
+                # 记录详细错误日志
+                logger.error(f"DeepSeek API请求失败 [{request_id}]: {error_type} - {str(conn_err)}")
+                
                 if current_retry < self.max_retries:
                     current_retry += 1
                     # 使用指数退避策略，每次重试等待时间翻倍
                     wait_time = self.retry_interval * (2 ** current_retry)
                     # 限制最大等待时间为60秒
                     wait_time = min(wait_time, 60)
-                    logger.info(f"连接DeepSeek API失败，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    logger.info(f"连接DeepSeek API失败 [{request_id}]，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
                     time.sleep(wait_time)
                     continue
-                raise ProcessingError(error_msg, {"suggestion": "请检查网络连接或API服务状态 / Please check your network connection or API service status"})
+                    
+                raise ProcessingError(error_msg, error_details)
             except Exception as e:
+                # 为异常生成唯一标识符
+                request_id = f"req-{int(time.time())}-{hash(str(e)) % 10000:04d}"
+                
                 if isinstance(e, ProcessingError):
                     raise e
-                error_msg = f"调用DeepSeek API时出错 / Error calling DeepSeek API"
-                raise ProcessingError(error_msg, {"original_error": str(e)})
+                    
+                # 详细的异常信息收集
+                error_details = {
+                    "request_id": request_id,
+                    "original_error": str(e),
+                    "error_type": type(e).__name__
+                }
+                
+                # 尝试获取更多错误上下文
+                import traceback
+                error_details["traceback"] = traceback.format_exc().split("\n")[-10:]
+                
+                # 添加请求信息
+                try:
+                    error_details["request_info"] = {
+                        "model": model_name,
+                        "temperature": self.temperature,
+                        "timeout": self.timeout
+                    }
+                except Exception as info_err:
+                    error_details["info_error"] = str(info_err)
+                
+                # 记录详细错误日志
+                logger.error(f"DeepSeek API未预期异常 [{request_id}]: {type(e).__name__} - {str(e)}")
+                
+                error_msg = f"调用DeepSeek API时出错: {type(e).__name__} / Error calling DeepSeek API: {type(e).__name__}"
+                raise ProcessingError(error_msg, error_details)
             
             # 如果执行到这里，说明请求成功，跳出重试循环
             break

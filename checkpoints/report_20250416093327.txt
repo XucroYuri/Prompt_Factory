@@ -1,0 +1,20 @@
+任务执行报告
+===========
+总文件数: 10
+成功处理: 0
+处理失败: 10
+跳过文件: 0
+处理用时: 15分45秒
+输出目录: /Users/xuyu/Desktop/app/Prompt_Factory/output
+
+失败的文件:
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/电影评论家 - Movie Critic.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/电影评论家 - Film Critic.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/时事热点评论家 - Current Affairs Commentator.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/电子游戏评论员 - Video Game Reviewer.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/评论员 - Commentariat.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/外卖评论 - Takeout Review.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/专业书评人 - Professional Book Reviewer.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/科技评论 - Tech Reviewer.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/智说新语 - Zhi Shuo Xin Yu.md
+  - /Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评/食物评论家 - Food Critic.md

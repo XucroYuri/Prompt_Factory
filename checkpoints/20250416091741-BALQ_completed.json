@@ -3,8 +3,8 @@
   "input_path": "/Users/xuyu/Documents/github/Prompt_Library_Public/agent/点评",
   "output_path": "/Users/xuyu/Desktop/app/Prompt_Factory/output",
   "start_time": 1744766261.284895,
-  "end_time": null,
-  "status": "running",
+  "end_time": 1744767207.194027,
+  "status": "completed",
   "stats": {
     "total": 10,
     "processed": 10,
