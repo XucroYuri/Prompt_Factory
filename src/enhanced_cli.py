@@ -12,6 +12,17 @@ import platform
 from typing import Dict, List, Any, Optional, Tuple
 
 # 导入操作系统相关工具
+import sys
+import os
+
+# 添加项目根目录到Python路径
+current_file = os.path.abspath(__file__)
+src_dir = os.path.dirname(current_file)
+project_root = os.path.dirname(src_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# 导入操作系统相关工具
 from src.utils.environment import get_os_type, get_path_separator, OS_TYPE_WINDOWS, OS_TYPE_MACOS, OS_TYPE_LINUX
 # 导入任务管理器
 from src.utils.task_manager import TaskManager

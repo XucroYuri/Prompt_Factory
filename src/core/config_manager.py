@@ -5,7 +5,7 @@
 
 import os
 import json
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, Tuple
 
 
 class ConfigManager:

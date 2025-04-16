@@ -1,0 +1,19 @@
+{
+  "task_id": "20250416091255-9NEX",
+  "input_path": "/Users/xuyu/Documents/github/Prompt_Library_Public/agent/职业",
+  "output_path": "/Users/xuyu/Desktop/app/Prompt_Factory/output",
+  "start_time": 1744765975.8304892,
+  "end_time": null,
+  "status": "running",
+  "stats": {
+    "total": 0,
+    "processed": 0,
+    "success": 0,
+    "failed": 0,
+    "skipped": 0,
+    "failed_files": [],
+    "processed_files": []
+  },
+  "current_file": null,
+  "last_update": 1744765975.830492
+}

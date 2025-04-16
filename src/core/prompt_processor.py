@@ -7,7 +7,7 @@ import os
 import json
 import requests
 import time
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple, Union, Callable
 from .template_manager import TemplateManager
 from .model_manager import ModelManager
 
@@ -25,7 +25,8 @@ class PromptProcessor:
     def __init__(self, api_key: str, template_name: str = "standard", 
                  model: str = "anthropic/claude-3.7-sonnet", temperature: float = 0.7, 
                  model_manager: Optional[ModelManager] = None,
-                 output_path: Optional[str] = None, timeout: int = 30, max_retries: int = 2):
+                 output_path: Optional[str] = None, timeout: int = 30, max_retries: int = 2,
+                 file_extensions: Optional[List[str]] = None):
         """初始化提示词处理器
         
         Args:
@@ -37,6 +38,7 @@ class PromptProcessor:
             output_path: 输出路径（可选），指定结果保存的绝对路径，默认为项目根目录下的output目录
             timeout: API请求超时时间（秒），默认30秒
             max_retries: API请求失败后的最大重试次数，默认2次
+            file_extensions: 支持处理的文件扩展名列表，默认为None表示处理所有文件
         
         Raises:
             ProcessingError: 初始化失败
@@ -46,6 +48,7 @@ class PromptProcessor:
         self.temperature = temperature
         self.timeout = timeout
         self.max_retries = max_retries
+        self.file_extensions = file_extensions
         
         # 设置输出路径，如果未提供则使用默认output目录
         if output_path:
