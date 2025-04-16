@@ -29,8 +29,8 @@ class PromptProcessor:
     def __init__(self, api_key: str, template_name: str = "standard", 
                  model: str = "anthropic/claude-3.7-sonnet", temperature: float = 0.7, 
                  model_manager: Optional[ModelManager] = None,
-                 output_path: Optional[str] = None, timeout: int = 30, max_retries: int = 2,
-                 file_extensions: Optional[List[str]] = None):
+                 output_path: Optional[str] = None, timeout: int = 60, max_retries: int = 5,
+                 retry_interval: int = 3, file_extensions: Optional[List[str]] = None):
         """初始化提示词处理器
         
         Args:
@@ -52,6 +52,7 @@ class PromptProcessor:
         self.temperature = temperature
         self.timeout = timeout
         self.max_retries = max_retries
+        self.retry_interval = retry_interval
         self.file_extensions = file_extensions
         
         # 设置输出路径，如果未提供则使用默认output目录
@@ -255,7 +256,10 @@ class PromptProcessor:
                     if response.status_code in [429, 500, 502, 503, 504] and current_retry < self.max_retries:
                         current_retry += 1
                         # 指数退避策略，每次重试等待时间翻倍
-                        time.sleep(2 ** current_retry)
+                        wait_time = self.retry_interval * (2 ** current_retry)
+                        wait_time = min(wait_time, 60)  # 限制最大等待时间为60秒
+                        logger.info(f"OpenAI API返回错误码{response.status_code}，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                        time.sleep(wait_time)
                         continue
                         
                     raise ProcessingError(
@@ -270,14 +274,23 @@ class PromptProcessor:
                 error_msg = f"调用OpenAI API超时 / OpenAI API request timeout"
                 if current_retry < self.max_retries:
                     current_retry += 1
-                    time.sleep(1)
+                    # 超时情况下也使用指数退避策略
+                    wait_time = self.retry_interval * (2 ** current_retry)
+                    wait_time = min(wait_time, 30)  # 限制最大等待时间为30秒
+                    logger.info(f"OpenAI API请求超时，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    time.sleep(wait_time)
                     continue
                 raise ProcessingError(error_msg, {"timeout": f"{self.timeout}秒"})
             except requests.exceptions.ConnectionError:
                 error_msg = f"调用OpenAI API连接错误 / OpenAI API connection error"
                 if current_retry < self.max_retries:
                     current_retry += 1
-                    time.sleep(2)
+                    # 使用指数退避策略，每次重试等待时间翻倍
+                    wait_time = self.retry_interval * (2 ** current_retry)
+                    # 限制最大等待时间为60秒
+                    wait_time = min(wait_time, 60)
+                    logger.info(f"连接OpenAI API失败，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    time.sleep(wait_time)
                     continue
                 raise ProcessingError(error_msg, {"suggestion": "请检查网络连接或API服务状态 / Please check your network connection or API service status"})
             except Exception as e:
@@ -334,7 +347,10 @@ class PromptProcessor:
                     if response.status_code in [429, 500, 502, 503, 504] and current_retry < self.max_retries:
                         current_retry += 1
                         # 指数退避策略，每次重试等待时间翻倍
-                        time.sleep(2 ** current_retry)
+                        wait_time = self.retry_interval * (2 ** current_retry)
+                        wait_time = min(wait_time, 60)  # 限制最大等待时间为60秒
+                        logger.info(f"OpenRouter API返回错误码{response.status_code}，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                        time.sleep(wait_time)
                         continue
                         
                     raise ProcessingError(
@@ -349,14 +365,23 @@ class PromptProcessor:
                 error_msg = f"调用OpenRouter API超时 / OpenRouter API request timeout"
                 if current_retry < self.max_retries:
                     current_retry += 1
-                    time.sleep(1)
+                    # 超时情况下也使用指数退避策略
+                    wait_time = self.retry_interval * (2 ** current_retry)
+                    wait_time = min(wait_time, 30)  # 限制最大等待时间为30秒
+                    logger.info(f"OpenRouter API请求超时，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    time.sleep(wait_time)
                     continue
                 raise ProcessingError(error_msg, {"timeout": f"{self.timeout}秒"})
             except requests.exceptions.ConnectionError:
                 error_msg = f"调用OpenRouter API连接错误 / OpenRouter API connection error"
                 if current_retry < self.max_retries:
                     current_retry += 1
-                    time.sleep(2)
+                    # 使用指数退避策略，每次重试等待时间翻倍
+                    wait_time = self.retry_interval * (2 ** current_retry)
+                    # 限制最大等待时间为60秒
+                    wait_time = min(wait_time, 60)
+                    logger.info(f"连接OpenRouter API失败，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    time.sleep(wait_time)
                     continue
                 raise ProcessingError(error_msg, {"suggestion": "请检查网络连接或API服务状态 / Please check your network connection or API service status"})
             except Exception as e:
@@ -428,14 +453,23 @@ class PromptProcessor:
                 error_msg = f"调用DeepSeek API超时 / DeepSeek API request timeout"
                 if current_retry < self.max_retries:
                     current_retry += 1
-                    time.sleep(1)
+                    # 超时情况下也使用指数退避策略
+                    wait_time = self.retry_interval * (2 ** current_retry)
+                    wait_time = min(wait_time, 30) # 限制最大等待时间为30秒
+                    logger.info(f"DeepSeek API请求超时，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    time.sleep(wait_time)
                     continue
                 raise ProcessingError(error_msg, {"timeout": f"{self.timeout}秒"})
             except requests.exceptions.ConnectionError:
                 error_msg = f"调用DeepSeek API连接错误 / DeepSeek API connection error"
                 if current_retry < self.max_retries:
                     current_retry += 1
-                    time.sleep(2)
+                    # 使用指数退避策略，每次重试等待时间翻倍
+                    wait_time = self.retry_interval * (2 ** current_retry)
+                    # 限制最大等待时间为60秒
+                    wait_time = min(wait_time, 60)
+                    logger.info(f"连接DeepSeek API失败，{wait_time}秒后重试 ({current_retry}/{self.max_retries})")
+                    time.sleep(wait_time)
                     continue
                 raise ProcessingError(error_msg, {"suggestion": "请检查网络连接或API服务状态 / Please check your network connection or API service status"})
             except Exception as e:
