@@ -4,7 +4,7 @@ English | [简体中文](docs/locale/README_zh.md)
 Highly efficient prompt engineering tool supporting batch optimization for multiple files with automated environment setup.
 
 ## Features
-- Support for multiple AI service providers (DeepSeek (default), OpenAI, OpenRouter)
+- Support for multiple AI service providers (DeepSeek, OpenAI, Anthropic, OpenRouter)
 - Automated environment detection, dependency installation, and self-checks
 - Recursive processing of all files in directories
 - Secure in-memory API key management, auto-cleared on exit
@@ -75,7 +75,10 @@ from src.core.prompt_processor import PromptProcessor
 processor = PromptProcessor(
     api_key="your_api_key",
     template_name="standard",
-    model="deepseek-chat"
+    model="deepseek/deepseek-chat",
+    temperature=0.7,
+    timeout=30,
+    max_retries=2
 )
 
 # Process a single file
@@ -122,7 +125,7 @@ Prompt_Factory/
 - It is recommended to use Python 3.8 or higher for best compatibility
 
 ## Roadmap
-- More model provider integrations: support Google Gemini, Grok, DeepSeek, etc.
+- More model provider integrations: support for Google Gemini, Grok, etc.
 - Rate limiting mechanism for API communications
 - Time-zone-driven runtime scheduling
 - Frontend UI development: intuitive and efficient user interface design
@@ -160,7 +163,7 @@ Prompt_Factory/
 7. Handles responses and stores optimized prompts
 
 ## Frontend-Backend Separation Guide
-The backend provides RESTful API interfaces, for details refer to [API Reference](docs/api_reference.md). for frontend development suggestions and component design, refer to [Frontend Integration](docs/frontend_integration.md).
+The backend provides RESTful API interfaces, for details refer to [API Reference](docs/api_reference.md). For frontend development suggestions and component design, refer to [Frontend Integration](docs/frontend_integration.md).
 
 ## Contribution Guide
 Contributions, bug reports, and suggestions are welcome. Please follow these steps:
@@ -184,7 +187,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for more 
   ```
 
 ## Locale Configuration
-If you need to customize the interface and output language, refer to docs/locale/README_zh.md.
+If you need to customize the interface and output language, refer to [Chinese README](docs/locale/README_zh.md).
 
 ## Usage Example
 ```python
@@ -194,7 +197,7 @@ result = processor.process_content("Please optimize this prompt.")
 ```
 
 ## Dependency Notes
-- Internet connection required for using models like OpenAI/OpenRouter.
+- Internet connection required for using models like DeepSeek/OpenAI/OpenRouter.
 - If you encounter a requests-related error, run `pip3 install requests`.
 - Model and template configuration details: see docs/prompt_processor.md and docs/template_manager.md.
 

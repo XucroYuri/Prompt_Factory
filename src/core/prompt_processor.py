@@ -463,13 +463,17 @@ class PromptProcessor:
         """
         return self.template_manager.active_template or ""
     
-    def process_directory(self, directory_path: str, file_extensions: List[str] = None, recursive: bool = True) -> Dict[str, Any]:
+    def process_directory(self, directory_path: str, file_extensions: List[str] = None, recursive: bool = True, callbacks: Dict[str, Callable] = None) -> Dict[str, Any]:
         """处理目录
         
         Args:
             directory_path: 目录路径
             file_extensions: 要处理的文件扩展名列表，默认为['.md']，None表示处理所有文件
             recursive: 是否递归处理子目录，默认为True
+            callbacks: 回调函数字典，可包含以下键：
+                - file_processed: 文件处理完成时的回调，参数为(file_path, success)
+                - file_skipped: 文件被跳过时的回调，参数为(file_path)
+                - directory_entered: 进入目录时的回调，参数为(dir_path)
             
         Returns:
             Dict[str, Any]: 处理统计结果字典
@@ -489,6 +493,9 @@ class PromptProcessor:
         elif len(file_extensions) == 0:
             # 空列表表示处理所有文件
             file_extensions = None
+            
+        # 保存文件扩展名，供外部访问
+        self.file_extensions = file_extensions
             
         # 创建基于日期和批次号的输出目录
         import datetime
@@ -527,11 +534,17 @@ class PromptProcessor:
             # 检查文件扩展名是否需要处理
             if file_extensions is not None and file_ext not in file_extensions:
                 stats["skipped"] += 1
+                # 调用文件跳过回调
+                if callbacks and "file_skipped" in callbacks:
+                    callbacks["file_skipped"](file_path)
                 return
                 
             # 跳过已优化的文件
             if "_optimized" in file_name:
                 stats["skipped"] += 1
+                # 调用文件跳过回调
+                if callbacks and "file_skipped" in callbacks:
+                    callbacks["file_skipped"](file_path)
                 return
                 
             stats["total"] += 1
@@ -547,6 +560,9 @@ class PromptProcessor:
                 if not result:
                     stats["failed"] += 1
                     stats["failed_files"].append(file_path)
+                    # 调用文件处理回调（失败）
+                    if callbacks and "file_processed" in callbacks:
+                        callbacks["file_processed"](file_path, False)
                     return
                 
                 # 创建相应的输出目录
@@ -560,6 +576,10 @@ class PromptProcessor:
                 
                 stats["success"] += 1
                 
+                # 调用文件处理回调（成功）
+                if callbacks and "file_processed" in callbacks:
+                    callbacks["file_processed"](file_path, True)
+                
             except Exception as e:
                 stats["failed"] += 1
                 stats["failed_files"].append(file_path)
@@ -568,6 +588,10 @@ class PromptProcessor:
                 # 如果是ProcessingError异常，保留详细信息但不中断程序
                 if isinstance(e, ProcessingError) and hasattr(e, 'details'):
                     logger.error(f"错误详情: {e.details}")
+                
+                # 调用文件处理回调（失败）
+                if callbacks and "file_processed" in callbacks:
+                    callbacks["file_processed"](file_path, False)
         
         # 开始处理文件
         if recursive:
@@ -575,6 +599,10 @@ class PromptProcessor:
             for root, _, files in os.walk(directory_path):
                 # 计算相对路径，用于保持目录结构
                 rel_path = os.path.relpath(root, directory_path)
+                
+                # 调用进入目录回调
+                if callbacks and "directory_entered" in callbacks:
+                    callbacks["directory_entered"](root)
                 
                 for file in files:
                     file_path = os.path.join(root, file)

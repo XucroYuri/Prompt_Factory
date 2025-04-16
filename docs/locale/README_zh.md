@@ -4,7 +4,7 @@
 高效的提示词处理工具，支持批量优化多文件提示词，自动环境配置。
 
 ## 功能特性
-- 支持多种AI服务提供商API (OpenAI, Anthropic, OpenRouter)
+- 支持多种AI服务提供商API (DeepSeek, OpenAI, Anthropic, OpenRouter)
 - 自动化环境检测、依赖安装与自检
 - 递归处理目录下所有文件
 - 安全的API密钥管理，程序退出时自动清理
@@ -75,7 +75,10 @@ from src.core.prompt_processor import PromptProcessor
 processor = PromptProcessor(
     api_key="your_api_key",
     template_name="standard",
-    model="openai/gpt-4"
+    model="deepseek/deepseek-chat",
+    temperature=0.7,
+    timeout=30,
+    max_retries=2
 )
 
 # 处理单个文件
@@ -122,7 +125,7 @@ Prompt_Factory/
 - 建议使用 Python 3.8 或更高版本以确保最佳兼容性
 
 ## 开发计划
-- 更多模型提供商集成：支持Google Gemini、Grok、DeepSeek等。
+- 更多模型提供商集成：支持Google Gemini、Grok等。
 - 速率管理机制：实现API通信速率控制。
 - 基于时区的运行计划：按时区设置运行时段。
 - 前端界面开发：设计直观高效的用户界面。
@@ -161,6 +164,26 @@ Prompt_Factory/
 
 ## 前后端分离开发指南
 后端提供RESTful API接口，详细设计请参考 [API参考文档](../api_reference.md)。前端开发建议和组件设计请参考 [前端集成文档](../frontend_integration.md)。
+
+## 环境准备
+
+- 需要Python 3.8或更高版本；推荐在macOS/Linux上进行开发和测试。
+- 安装依赖：
+  ```bash
+  pip3 install -r requirements.txt
+  ```
+
+## 使用示例
+```python
+from src.core.prompt_processor import PromptProcessor
+processor = PromptProcessor(api_key="your_api_key")
+result = processor.process_content("请优化这个提示词。")
+```
+
+## 依赖说明
+- 使用DeepSeek/OpenAI/OpenRouter等模型需要互联网连接。
+- 如果遇到requests相关错误，请运行 `pip3 install requests`。
+- 模型和模板配置详情：请参阅docs/prompt_processor.md和docs/template_manager.md。
 
 ## 贡献指南
 欢迎贡献代码、报告问题或提出改进建议。请遵循以下步骤：

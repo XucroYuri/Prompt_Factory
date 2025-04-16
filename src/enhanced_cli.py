@@ -13,6 +13,8 @@ from typing import Dict, List, Any, Optional, Tuple
 
 # 导入操作系统相关工具
 from src.utils.environment import get_os_type, get_path_separator, OS_TYPE_WINDOWS, OS_TYPE_MACOS, OS_TYPE_LINUX
+# 导入任务管理器
+from src.utils.task_manager import TaskManager
 
 # 设置基本日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,7 +28,8 @@ from src.utils.environment import (
 from src.utils.cli_interface import (
     print_header, print_success, print_error, print_warning, print_info,
     collect_api_keys, select_provider, select_model, select_template,
-    select_input_path, select_output_path, show_summary, interactive_setup
+    select_input_path, select_output_path, show_summary, interactive_setup,
+    get_confirmation
 )
 
 # 导入核心模块
@@ -122,6 +125,24 @@ def process_files(config: Dict[str, Any]) -> bool:
     Returns:
         bool: 处理是否成功
     """
+    # 创建任务管理器
+    task_manager = TaskManager()
+    
+    # 检查是否有未完成的任务
+    unfinished_task = task_manager.load_latest_task()
+    if unfinished_task and unfinished_task.input_path == config["input_path"]:
+        # 询问用户是否继续未完成的任务
+        if get_confirmation(f"发现未完成的任务（进度: {unfinished_task.get_progress_percentage():.1f}%），是否继续？", default=True):
+            print_info("继续处理未完成的任务...")
+            # 获取未处理的文件列表
+            unfinished_files = task_manager.get_unfinished_files()
+            print_info(f"剩余 {len(unfinished_files)} 个文件待处理")
+        else:
+            # 用户选择不继续，创建新任务
+            unfinished_task = None
+    else:
+        unfinished_task = None
+    
     try:
         # 创建处理器
         processor = PromptProcessor(
@@ -135,32 +156,111 @@ def process_files(config: Dict[str, Any]) -> bool:
         
         # 处理输入路径
         input_path = config["input_path"]
+        output_path = config.get("output_path", processor.output_path)
+        
+        # 如果没有未完成任务，创建新任务
+        if not unfinished_task:
+            task_manager.create_task(input_path, output_path)
+        
         if os.path.isdir(input_path):
             # 处理目录
             print_info(f"正在处理目录: {input_path}")
-            stats = processor.process_directory(input_path)
-            show_summary(stats)
-            return stats.get("failed", 0) == 0
+            print_info("处理进度将实时显示在终端...")
+            
+            # 获取目录中的文件总数（用于进度显示）
+            total_files = 0
+            for root, _, files in os.walk(input_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    file_ext = os.path.splitext(file)[1].lower()
+                    # 跳过已优化的文件
+                    if "_optimized" not in file and (not processor.file_extensions or file_ext in processor.file_extensions):
+                        total_files += 1
+            
+            # 设置任务总文件数
+            task_manager.current_task.stats["total"] = total_files
+            
+            # 设置进度显示
+            task_manager.setup_progress_display()
+            
+            # 自定义文件处理回调函数
+            def file_callback(file_path: str, success: bool) -> None:
+                # 更新任务进度
+                task_manager.update_progress(file_path, success)
+            
+            # 自定义文件跳过回调函数
+            def skip_callback(file_path: str) -> None:
+                # 标记文件为跳过
+                task_manager.skip_file(file_path)
+            
+            # 处理目录（传入回调函数）
+            try:
+                stats = processor.process_directory(input_path, callbacks={
+                    "file_processed": file_callback,
+                    "file_skipped": skip_callback
+                })
+                
+                # 完成任务
+                final_stats = task_manager.complete_task()
+                
+                # 显示处理摘要
+                show_summary(stats)
+                
+                # 生成并显示报告
+                task_manager.display_report(final_stats)
+                
+                # 保存报告
+                report_file = task_manager.save_report(final_stats)
+                if report_file:
+                    print_info(f"任务报告已保存到: {report_file}")
+                
+                return stats.get("failed", 0) == 0
+                
+            except KeyboardInterrupt:
+                # 用户中断任务
+                print_warning("\n任务已被用户中断，正在保存进度...")
+                task_manager.pause_task()
+                print_info("进度已保存，可以稍后继续处理")
+                return False
             
         else:
             # 处理单个文件
             print_info(f"正在处理文件: {input_path}")
             result = processor.process_file(input_path)
             
+            # 更新任务状态
             if result:
+                task_manager.update_progress(input_path, True)
                 print_success("文件处理成功")
             else:
+                task_manager.update_progress(input_path, False)
                 print_error("文件处理失败")
-                
+            
+            # 完成任务
+            final_stats = task_manager.complete_task()
+            
+            # 显示报告
+            task_manager.display_report(final_stats)
+            
             return result
             
     except ProcessingError as e:
         print_error(f"处理过程中出错: {e}")
         if hasattr(e, 'details') and e.details:
             print_error(f"错误详情: {e.details}")
+        
+        # 标记任务为失败
+        if task_manager.current_task:
+            task_manager.fail_task()
+        
         return False
     except Exception as e:
         print_error(f"未知错误: {e}")
+        
+        # 标记任务为失败
+        if task_manager.current_task:
+            task_manager.fail_task()
+        
         return False
 
 
@@ -220,6 +320,8 @@ def main():
     parser = argparse.ArgumentParser(description="Prompt Factory - 增强的提示词处理工具")
     parser.add_argument("--force-install", action="store_true", help="强制安装依赖包")
     parser.add_argument("--debug", action="store_true", help="启用调试模式")
+    parser.add_argument("--resume", action="store_true", help="恢复上次未完成的任务")
+    parser.add_argument("--report", action="store_true", help="显示上次任务的报告")
     args = parser.parse_args()
     
     # 设置日志级别
@@ -231,7 +333,63 @@ def main():
         if not run_startup_sequence(args):
             sys.exit(1)
         
-        # 收集用户配置
+        # 如果用户请求显示上次任务报告
+        if args.report:
+            task_manager = TaskManager()
+            last_task = task_manager.load_latest_task()
+            if last_task:
+                # 显示上次任务的报告
+                stats = last_task.stats.copy()
+                stats["elapsed_time"] = last_task.get_elapsed_time()
+                stats["output_path"] = last_task.output_path
+                task_manager.display_report(stats)
+                sys.exit(0)
+            else:
+                print_error("没有找到上次任务的记录")
+                sys.exit(1)
+        
+        # 如果用户请求恢复上次任务
+        if args.resume:
+            task_manager = TaskManager()
+            last_task = task_manager.load_latest_task()
+            if last_task and last_task.status == "paused":
+                # 构建配置
+                config = {
+                    "input_path": last_task.input_path,
+                    "output_path": last_task.output_path
+                }
+                
+                # 提示用户输入API密钥
+                print_info(f"正在恢复任务: {last_task.task_id}")
+                api_keys = collect_api_keys()
+                if not api_keys:
+                    print_error("未提供任何API密钥，无法恢复任务")
+                    sys.exit(1)
+                
+                # 选择服务提供商
+                provider = select_provider(api_keys)
+                if not provider:
+                    print_error("未选择服务提供商，无法恢复任务")
+                    sys.exit(1)
+                
+                config["provider"] = provider
+                config["api_key"] = api_keys[provider]
+                
+                # 处理文件或目录
+                success = process_files(config)
+                
+                # 结束程序
+                if success:
+                    print_success("任务恢复并完成")
+                    sys.exit(0)
+                else:
+                    print_error("任务恢复过程中出现错误")
+                    sys.exit(1)
+            else:
+                print_error("没有找到可恢复的任务")
+                sys.exit(1)
+        
+        # 正常流程：收集用户配置
         config = collect_configuration()
         if not config:
             print_error("配置收集失败或已取消")
@@ -250,6 +408,14 @@ def main():
             
     except KeyboardInterrupt:
         print_warning("\n程序已被用户中断")
+        # 尝试保存当前任务状态
+        try:
+            task_manager = TaskManager()
+            if task_manager.current_task:
+                task_manager.pause_task()
+                print_info("任务进度已保存，可以使用 --resume 参数恢复")
+        except Exception:
+            pass
         sys.exit(130)
     except Exception as e:
         print_error(f"发生未处理的异常: {e}")
